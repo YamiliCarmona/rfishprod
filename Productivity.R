@@ -1,7 +1,9 @@
-# load libraries 
+# load 
 
 library(dplyr)
 library(tidyverse)
+library(ramify)
+library(ggplot2)
 
 # load data -----------------
 
@@ -119,6 +121,18 @@ fish_ltem <- fish_ltem |>
   mutate(sstmean = 25.5) |> 
   select(Family, Species, SpecCode, Size, MaxSizeTL, Diet, Position, A_ord, B_pen, Longitude, Latitude, sstmean)
 
+# Calcular la masa corporal individual -----------
+
+fish_ltem <- fish_ltem |> 
+  # rename(Lmeas = Size, a =  A_ord , b = B_pen ) |> 
+  mutate(Mti = A_ord * (Size ^ B_pen))
+  # mutate(Mti = a * (Lmeas ^ b))
+
+# Biomasa total del conjunto de peces (Biomasa en pie):
+
+biomasa_total <- fish_ltem |> 
+  summarise(B_t = sum(Mti))
+
 # Predicts standardised growth parameter Kmax for reef fishes ----------------
 # predKmax(traits, dataset, fmod, params = NULL, niter, nrounds = 150, verbose = 0, print_every = 1000, return = c('pred', 'relimp', 'models'), lowq = 0.25, uppq = 0.75) 
 
@@ -183,7 +197,7 @@ productividad <- crecimiento_somatico_total - perdidas_mortalidad
 print(productividad)
 
 
-library(ggplot2)
+
 
 # Crear un dataframe con las tallas observadas y calculadas
 data_plot <- data.frame(
@@ -191,9 +205,24 @@ data_plot <- data.frame(
   Lgr = Lgr
 )
 
+
 # Graficar las tallas observadas y calculadas
 ggplot(data_plot, aes(x = Lmeas, y = Lgr)) +
   geom_point(color = "blue") +
   geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "red") +
   labs(x = "Talla Observada (Lmeas)", y = "Talla Calculada (Lgr)") +
   theme_minimal()
+
+
+# Crear un dataframe con los tamaños máximos y la temperatura del agua
+data_maxsize_temp <- data.frame(
+  TamanoMaximo = fish_ltem$MaxSizeTL,
+  TemperaturaAgua = fish_ltem$sstmean
+)
+
+# Gráfica de dispersión del tamaño máximo vs. temperatura del agua
+ggplot(data_maxsize_temp, aes(x = TemperaturaAgua, y = TamanoMaximo)) +
+  geom_point(color = "purple") +
+  labs(x = "Temperatura del Agua", y = "Tamaño Máximo") +
+  theme_minimal()
+
