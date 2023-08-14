@@ -8,7 +8,17 @@ library(openxlsx)
 
 # load data -----------------
 
-tabla <- read.xlsx("data/tabl_parametrs.xlsx")
+tabla <- read.xlsx("data/tabl_parametrs.xlsx") |> 
+  filter(
+         Family %in% c ("Serranidae", "Lutjanidae", "Carangidae", "Scaridae", "Scombridae"),
+  ) |> 
+  mutate(sstmean = 25.5) |> 
+  mutate(Diet = factor(Diet,  
+                       levels = c("HerMac", "HerDet", "Omnivr", "Plktiv", "InvSes", "InvMob", "FisCep")),
+         Position = factor(Position,  
+                           levels = c("PelgAs", "PelgDw", "BtPlAs", "BtPlDw", "BnthAs", "BnthDw")),
+         Method = factor(Method,
+                         levels = c("LenFrq", "MarkRc", "Otolth", "Unknown", "OthRin", "ScalRi")))
 
 
 fish <- readRDS("data/LTEM_historic_updated_27122022.RDS") |> 
@@ -46,7 +56,7 @@ merged_data <- merge(fish, tabla, by = c("Family", "Species", "A_ord", "B_pen"),
 
 
 # fish_ltem <- read.xlsx("data/fish_parametros.xlsx") |> # merged_data 
-fish_ltem <- merged_data |> 
+fish_islotes <- merged_data |> 
   filter(Region == "La Paz", Reef == "ESPIRITU_SANTO_ISLOTES_ESTE") |> 
   mutate(Diet = factor(Diet,  
                        levels = c("HerMac", "HerDet", "Omnivr", "Plktiv", "InvSes", "InvMob", "FisCep")),
@@ -81,19 +91,23 @@ fish_ltem <- merged_data |>
 # a <- fish_ltem$A_ord
 # b <- fish_ltem$B_pen
 
-t <- 1
+t <- 365
+
+tabla <- tabla |> 
+  mutate( Kmax = K / LinfTL)
+
 
 # Calcular la masa corporal individual -----------
 
-fish_ltem <- fish_ltem |> 
+fish_ltem <- fish_islotes |> 
   # rename(a = A_ord, b = B_pen, lon = Longitude, lat = Latitude, Lmeas = Size) |> 
-  # mutate(Mti = A_ord * (Size ^ B_pen))
+  mutate(Mti = A_ord * (Size ^ B_pen))
 # mutate(Mti = a * (Lmeas ^ b))
-  mutate(Biomass = (Quantity * A_ord* (Size^B_pen))/(Area * 100))
+  # mutate(Biomass = (Quantity * A_ord* (Size^B_pen))/(Area * 100))
 
 # Biomasa total del conjunto de peces (Biomasa en pie):
 
-biomasa_total <- fish_ltem |> 
+biomasa_total <- fish_islotes |> 
   
   summarise(B_t = sum(Biomass))
 
@@ -102,29 +116,28 @@ str(fish_ltem)
 unique(db$Diet)
 
 # sstmean 
-fish_ltem <- fish_ltem |> 
-  mutate(sstmean = 25.5) |> 
-  select(Family, Species, SpecCode, MaxSizeTL, Diet, 
-         Position, A_ord, B_pen, LinfTL, K, O, Longitude, Latitude, sstmean, Method)
+fish_ltem <- fish_islotes |> 
+  mutate(sstmean = 25.5) 
+# |>
+#   select(Family, Species, SpecCode, Size, Biomass, MaxSizeTL, Diet,
+#          Position, A_ord, B_pen, LinfTL, K, O, Longitude, Latitude, sstmean, Method)
 
 fish_ltem$SpecCode <-as.integer(fish_ltem$SpecCode)
-
 
 
 # Predicts standardised growth parameter Kmax for reef fishes ----------------
 # predKmax(traits, dataset, fmod, params = NULL, niter, nrounds = 150, verbose = 0, print_every = 1000, return = c('pred', 'relimp', 'models'), lowq = 0.25, uppq = 0.75) 
 
-Kmaxpred <- predKmax(traits = fish_ltem, fmod = ~ sstmean + MaxSizeTL + Diet + Position + Method, niter = 1000)
+Kmaxpred <- predKmax(traits = fish_ltem, dataset = tabla, fmod = ~ sstmean + MaxSizeTL + Diet + Position + Method, niter = 1000)
 
 # Acceder al elemento 'pred' de la lista Kmax
 Kmax_pred <- Kmaxpred$pred
 
+a0_estimates <- predM(Lmeas = fish_ltem$Size, Lmax = fish_ltem$MaxSizeTL, Kmax = Kmax_pred$Kmax, temp = fish_ltem$sstmean, method = 'Pauly')
+
 # Kmax_pred <- Kmax_pred |> 
 #   select(Family, Species, SpecCode, Size, MaxSizeTL, Diet, Position, A_ord, B_pen, Longitude, Latitude, sstmean, Kmax)
 
-# Usar la función predM con el método 'Pauly' para obtener las estimaciones de t0 (a0)
-
-a0_estimates <- predM(Lmeas = fish_ltem$Size, Lmax = fish_ltem$MaxSizeTL, Kmax = Kmax_pred$Kmax, temp = fish_ltem$sstmean, method = 'Pauly')
 
 # Applying_growth 
 # Applies VBGF to fish length data ---------------------
@@ -171,12 +184,23 @@ crecimiento_somatico_total <- sum(resultado_pesos)
 perdidas_mortalidad <- sum(perdida_per_capita)
 
 
-# Productividad
+# Productividad -------
 productividad <- (biomasa_total + crecimiento_somatico_total - perdidas_mortalidad)
 
 
 print(productividad)
 
+
+fish_ltem$Kmax_pred <- Kmax_pred$Kmax
+fish_ltem$a0 <- a0_estimates
+fish_ltem$length <- resultado_longitud
+fish_ltem$weight <- resultado_pesos
+fish_ltem$M <- M
+fish_ltem$Perdida <- perdida_per_capita
+fish_ltem$Stochastic <- stochastic
+
+produc_islotes<- fish_ltem |> 
+  mutate(Productivity = Biomass + weight - Perdida)
 
 
 
