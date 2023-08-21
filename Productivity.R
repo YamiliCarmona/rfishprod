@@ -1,5 +1,8 @@
 # load 
-
+# install.packages("devtools")
+library(devtools)
+devtools::install_github("renatoamorais/rfishprod")
+library(rfishprod)
 library(dplyr)
 library(tidyverse)
 library(ramify)
@@ -49,80 +52,45 @@ fish <- readRDS("data/LTEM_historic_updated_27122022.RDS") |>
   mutate(Species = recode(Species, "Rypticus courtenayi   " = "Rypticus courtenayi",
                           "Carangoides orthogrammus" = "Ferdauia orthogrammus",
                           "Epinephelus acanthistius" = "Hyporthodus acanthistius")) 
-# 
-# fish_ltem <- left_join(fish_ltem, tabl, by = c( "Family", "Species", "A_ord", "B_pen"))
-# 
-merged_data <- merge(fish, tabla, by = c("Family", "Species", "A_ord", "B_pen"), all.x = TRUE)
 
+
+
+tabla <- tabla |> 
+  mutate(Kmax = K * Linf / LinfTL)
+mutate(Kmax = K  / LinfTL)
+  mutate(Kmax = -log(1 - MaxSizeTL / Linf) / t0)
+
+  
+merged_data <- merge(fish, tabla, by = c("Family", "Species", "A_ord", "B_pen"), all.x = TRUE)
+  
 
 # fish_ltem <- read.xlsx("data/fish_parametros.xlsx") |> # merged_data 
 fish_islotes <- merged_data |> 
-  filter(Region == "La Paz", Reef == "ESPIRITU_SANTO_ISLOTES_ESTE") |> 
-  mutate(Diet = factor(Diet,  
-                       levels = c("HerMac", "HerDet", "Omnivr", "Plktiv", "InvSes", "InvMob", "FisCep")),
-         Position = factor(Position,  
-                           levels = c("PelgAs", "PelgDw", "BtPlAs", "BtPlDw", "BnthAs", "BnthDw")),
-         Method = factor(Method,
-                         levels = c("LenFrq", "MarkRc", "Otolth", "Unknown", "OthRin", "ScalRi")))
-
-# # SpecCode, Diet, Position, Method
-# fish_ltem <- merge(fish_ltem, db[, c('Species', 'SpecCode', 'Diet', 'Position', 'Method')],
-#                    by = 'Species', all.x = TRUE, suffixes = c("", ".db"))
-# 
-# # Si hay columnas duplicadas después de la combinación, eliminar las duplicadas de .db
-# duplicated_columns <- names(fish_ltem)[duplicated(names(fish_ltem))]
-# fish_ltem <- fish_ltem[, !grepl("\\.db$", names(fish_ltem)) | !names(fish_ltem) %in% duplicated_columns]
-# 
-# # Si hay columnas duplicadas después de la combinación, renombrar las columnas en .db
-# for (col in setdiff(names(fish_ltem), names(db))) {
-#   if (grepl("\\.db$", col)) {
-#     new_colname <- gsub("\\.db$", "", col)
-#     names(fish_ltem)[names(fish_ltem) == col] <- new_colname
-#   }
-# }
-# 
-# # Tallas maximas
-# fish_ltem <- fish_ltem |> 
-#   group_by(Species) |> 
-#   mutate(MaxSizeTL = max(Size)) |> 
-#   ungroup()
-# 
-# Lmeas <- fish_ltem$Size # Vector de tallas iniciales
-# a <- fish_ltem$A_ord
-# b <- fish_ltem$B_pen
-
-t <- 365
-
-tabla <- tabla |> 
-  mutate( Kmax = K / LinfTL)
-
+    filter(Region == "La Paz", Reef == "ESPIRITU_SANTO_ISLOTES_ESTE") |> 
+    mutate(Diet = factor(Diet,  
+                         levels = c("HerMac", "HerDet", "Omnivr", "Plktiv", "InvSes", "InvMob", "FisCep")),
+           Position = factor(Position,  
+                             levels = c("PelgAs", "PelgDw", "BtPlAs", "BtPlDw", "BnthAs", "BnthDw")),
+           Method = factor(Method,
+                           levels = c("LenFrq", "MarkRc", "Otolth", "Unknown", "OthRin", "ScalRi")))
+  
+  
+t <- 1
 
 # Calcular la masa corporal individual -----------
 
 fish_ltem <- fish_islotes |> 
-  # rename(a = A_ord, b = B_pen, lon = Longitude, lat = Latitude, Lmeas = Size) |> 
-  mutate(Mti = A_ord * (Size ^ B_pen))
-# mutate(Mti = a * (Lmeas ^ b))
-  # mutate(Biomass = (Quantity * A_ord* (Size^B_pen))/(Area * 100))
+  # mutate(Mti = A_ord * (Size ^ B_pen))
+  mutate(Biomass = (Quantity * A_ord* (Size^B_pen))/(Area * 100))
 
 # Biomasa total del conjunto de peces (Biomasa en pie):
 
 biomasa_total <- fish_islotes |> 
-  
   summarise(B_t = sum(Biomass))
-
-head(db)
-str(fish_ltem)
-unique(db$Diet)
 
 # sstmean 
 fish_ltem <- fish_islotes |> 
   mutate(sstmean = 25.5) 
-# |>
-#   select(Family, Species, SpecCode, Size, Biomass, MaxSizeTL, Diet,
-#          Position, A_ord, B_pen, LinfTL, K, O, Longitude, Latitude, sstmean, Method)
-
-fish_ltem$SpecCode <-as.integer(fish_ltem$SpecCode)
 
 
 # Predicts standardised growth parameter Kmax for reef fishes ----------------
@@ -133,17 +101,16 @@ Kmaxpred <- predKmax(traits = fish_ltem, dataset = tabla, fmod = ~ sstmean + Max
 # Acceder al elemento 'pred' de la lista Kmax
 Kmax_pred <- Kmaxpred$pred
 
-a0_estimates <- predM(Lmeas = fish_ltem$Size, Lmax = fish_ltem$MaxSizeTL, Kmax = Kmax_pred$Kmax, temp = fish_ltem$sstmean, method = 'Pauly')
+# a0_estimates <- predM(Lmeas = fish_ltem$Size, Lmax = fish_ltem$MaxSizeTL, Kmax = Kmax_pred$Kmax, temp = fish_ltem$sstmean, method = 'Pauly')
 
-# Kmax_pred <- Kmax_pred |> 
-#   select(Family, Species, SpecCode, Size, MaxSizeTL, Diet, Position, A_ord, B_pen, Longitude, Latitude, sstmean, Kmax)
 
 
 # Applying_growth 
 # Applies VBGF to fish length data ---------------------
 # applyVBGF (Lmeas, t = 1, Lmax, Kmax, L0, t0, t0lowbound = -0.5,  silent = T)
 
-resultado_longitud <- applyVBGF(Lmeas = fish_ltem$Size, t = t, Lmax = fish_ltem$MaxSizeTL, Kmax = Kmax_pred$Kmax, t0 = a0_estimates)
+resultado_longitud <-applyVBGF(Lmeas = fish_ltem$Size, t = t, Lmax = fish_ltem$MaxSizeTL, Kmax = Kmax_pred$Kmax)
+
 
 Lgr <- resultado_longitud # Vector de tallas calculadas con VBGF
 ctrgr(Lmeas = fish_ltem$Size, Lgr, silent = FALSE) # Verificar si el crecimiento es válido
@@ -151,7 +118,7 @@ ctrgr(Lmeas = fish_ltem$Size, Lgr, silent = FALSE) # Verificar si el crecimiento
 # Expected somatic growth in weight----------------
 # somaGain (a, b, Lmeas, t = 1, Lmax, Kmax, t0, t0lowbound = -0.5,  silent = T)
 
-resultado_pesos <- somaGain(a = fish_ltem$A_ord, b = fish_ltem$B_pen, Lmeas = fish_ltem$Size, t = t, Lmax = fish_ltem$MaxSizeTL, Kmax = Kmax_pred$Kmax, t0 = a0_estimates)
+resultado_pesos <- somaGain(a = fish_ltem$A_ord, b = fish_ltem$B_pen, Lmeas = fish_ltem$Size, t = t, Lmax = fish_ltem$MaxSizeTL, Kmax = Kmax_pred$Kmax)
 
 #   Predicts natural mortality rates Z/M for reef fishes -----------
 # predM (Lmeas, t = 1, Lmax, Kmax, temp, Lr, p = 0.5, exp = -0.91, method = c('Lorenzen'))
@@ -203,6 +170,10 @@ produc_islotes<- fish_ltem |>
   mutate(Productivity = Biomass + weight - Perdida)
 
 
+ruta_archivo <- "data/fish_parameters18082023.xlsx"
+
+# Exportar el dataframe a un archivo Excel
+write.xlsx(produc_islotes, file = ruta_archivo)
 
 # Crear un dataframe con las tallas observadas y calculadas
 data_plot <- data.frame(
