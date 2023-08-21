@@ -57,8 +57,8 @@ fish <- readRDS("data/LTEM_historic_updated_27122022.RDS") |>
 
 tabla <- tabla |> 
   mutate(Kmax = K * Linf / LinfTL)
-mutate(Kmax = K  / LinfTL)
-  mutate(Kmax = -log(1 - MaxSizeTL / Linf) / t0)
+  # mutate(Kmax = K  / LinfTL)
+  # mutate(Kmax = -log(1 - MaxSizeTL / Linf) / t0)
 
   
 merged_data <- merge(fish, tabla, by = c("Family", "Species", "A_ord", "B_pen"), all.x = TRUE)
