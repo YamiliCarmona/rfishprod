@@ -9,10 +9,14 @@ library(ramify)
 library(ggplot2)
 library(openxlsx)
 
+
+
 # load data -----------------
 
-tabla <- read.xlsx("data/tabl_parametrs.xlsx") |> 
-  filter(
+
+tabla <- read.xlsx("data/tabl_parametrs_t0.xlsx") |> 
+  select(-X21, -Kmax, -Winf, -Tmax, -t0, -Source) |> 
+  filter( !is.na(LinfType),
          Family %in% c ("Serranidae", "Lutjanidae", "Carangidae", "Scaridae", "Scombridae"),
   ) |> 
   mutate(sstmean = 25.5) |> 
@@ -56,13 +60,26 @@ fish <- readRDS("data/LTEM_historic_updated_27122022.RDS") |>
 
 
 tabla <- tabla |> 
-  mutate(Kmax = K * Linf / LinfTL)
-  # mutate(Kmax = K  / LinfTL)
-  # mutate(Kmax = -log(1 - MaxSizeTL / Linf) / t0)
+  # mutate(Kmax = K * Linf / LinfTL)
+  mutate(Kmax = K  / Linf)
 
-  
+
 merged_data <- merge(fish, tabla, by = c("Family", "Species", "A_ord", "B_pen"), all.x = TRUE)
-  
+
+columns_to_add <- c("SpecCode", "Diet", "Position", "sstmean", "Method")
+
+
+# Eliminar columnas duplicadas y las columnas de 'y' que no necesitas
+merged_data <- merged_data[, !names(merged_data) %in% c("SpecCode.y")]
+
+# Cambiar el nombre de la columna 'SpecCode.x' a 'SpecCode'
+colnames(merged_data)[colnames(merged_data) == "SpecCode.x"] <- "SpecCode"
+
+
+
+# y[, c("Species","SpecCode", "Diet", "Position", "sstmean", "Method")]
+# "Family", "Species", "A_ord", "B_pen", "MaxSizeTL"
+#   
 
 # fish_ltem <- read.xlsx("data/fish_parametros.xlsx") |> # merged_data 
 fish_islotes <- merged_data |> 
@@ -74,23 +91,28 @@ fish_islotes <- merged_data |>
            Method = factor(Method,
                            levels = c("LenFrq", "MarkRc", "Otolth", "Unknown", "OthRin", "ScalRi")))
   
-  
+
+
+
+tabla <- fish_islotes |> 
+  select(Family, Species, SpecCode, MaxSizeTL, Diet, Position, A_ord, B_pen, 
+         LinfTL, K, Kmax, O, Longitude, Latitude, sstmean, Method) 
+
+fish_islotes <- fish_islotes |> 
+  select(Species, MaxSizeTL, Diet, Position, sstmean, Method, Size, A_ord, B_pen)
+
 t <- 1
 
 # Calcular la masa corporal individual -----------
 
 fish_ltem <- fish_islotes |> 
-  # mutate(Mti = A_ord * (Size ^ B_pen))
-  mutate(Biomass = (Quantity * A_ord* (Size^B_pen))/(Area * 100))
+  mutate(Biomass = A_ord * (Size ^ B_pen))
+  # mutate(Biomass = (Quantity * A_ord* (Size^B_pen))/(Area * 100))
 
-# Biomasa total del conjunto de peces (Biomasa en pie):
+# Biomasa total del conjunto de peces (Standing biomass):
 
-biomasa_total <- fish_islotes |> 
+biomasa_total <- fish_ltem |> 
   summarise(B_t = sum(Biomass))
-
-# sstmean 
-fish_ltem <- fish_islotes |> 
-  mutate(sstmean = 25.5) 
 
 
 # Predicts standardised growth parameter Kmax for reef fishes ----------------
@@ -159,7 +181,6 @@ print(productividad)
 
 
 fish_ltem$Kmax_pred <- Kmax_pred$Kmax
-fish_ltem$a0 <- a0_estimates
 fish_ltem$length <- resultado_longitud
 fish_ltem$weight <- resultado_pesos
 fish_ltem$M <- M
@@ -170,7 +191,7 @@ produc_islotes<- fish_ltem |>
   mutate(Productivity = Biomass + weight - Perdida)
 
 
-ruta_archivo <- "data/fish_parameters18082023.xlsx"
+ruta_archivo <- "data/fish_parameters23082023.xlsx"
 
 # Exportar el dataframe a un archivo Excel
 write.xlsx(produc_islotes, file = ruta_archivo)
