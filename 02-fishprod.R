@@ -7,7 +7,7 @@ devtools::install_github("renatoamorais/rfishprod")
 
 # load data -----------------
 
-tabla <- read_excel("data/tabla/spp_parametros_05092023.xlsx")|> 
+tabla <- read_excel("data/tabla/spp_parametros_20231201.xlsx")|> 
   mutate(sstmean = 27) |> 
   filter(!is.na (Linf)) |>
   mutate(LinfTL = ifelse(is.na(LinfTL), Linf, LinfTL))|>
