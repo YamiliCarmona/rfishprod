@@ -275,7 +275,7 @@ RLS_prod_figures = management %>%
   ungroup() %>%
   mutate(relative_diet = (diet_biom/biom_by_site)*100)
 
-(plot_biomass = ggplot(management %>% 
+(plot_biomass = ggplot(RLS_prod_figures %>% 
                          # filter(Class != "transition") %>% 
                          dplyr::select(Class, IDReef, Diet, relative_diet) %>% distinct(), aes(Diet,relative_diet,fill=Diet))+
     geom_jitter(alpha  = 0.3, size = 0.5,color='black',pch=21) +
