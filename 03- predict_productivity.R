@@ -13,13 +13,15 @@ library(ggpubr)
 
 tabl <- read_excel("data/tabla/spp_parametros_20231201.xlsx")|> 
   mutate(sstmean = 27) |> 
-  filter(!is.na (Linf), !is.na (LinfTL)) |>
-  # mutate(LinfTL = ifelse(is.na(LinfTL), Linf, LinfTL))|>
-  mutate(Kmax = K * Linf / LinfTL)
-  # mutate(Kmax = K  / Linf)
+  filter(!is.na (Linf), !is.na (LinfTL))
 
-fish <- readRDS("data/tabla/ltem_historic_20231109.RDS") |> 
-  filter(Label == "PEC", Year==2022, Region%in% c("La Paz", "La Ventana", "Loreto", "Los Cabos", "Cabo Pulmo")) |> 
+t <- 1
+
+
+fish <- readRDS("data/tabla/ltem_historic_updated_2023-12-18.RDS") |> 
+  # filter(Label == "PEC", Year==2023) |>
+  # filter(!Region=="Revillagigedo") |> 
+  filter(Label == "PEC", Year==2023, Region%in% c("La Paz", "La Ventana", "Loreto", "Cabo Pulmo")) |>
   mutate(
     A_ord = as.numeric(A_ord),
     B_pen= as.numeric(B_pen),
@@ -43,18 +45,23 @@ fish <- readRDS("data/tabla/ltem_historic_20231109.RDS") |>
                         labels = c("2-2.5", "2.5-3", "3-3.5", "3.5-4", "4-4.5"), 
                         right = FALSE))
   
-  # #Remove sharks rays and seahorses
-  # dplyr::filter(Taxa2 == "Actinopterygii" & Taxa2 != "Syngnathidae") |> 
-  # filter(Family != "Anguillidae", Family != "Congridae", Family != "Muraenidae", Family != "Ophichthidae") |>  
-  # #Removing small crypto 
-  # filter(Family != "Chironemidae", Family != "Pinguipedidae", Family != "Chaenopsidae", Family != "Tripterygiidae",
-  #        Family != "Gobiidae", Family != "Callionymidae", Family != "Blenniidae",
-  #        Family != "Labrisomidae", Family != "Microdesmidae", Family != "Pholidichthyidae")
+  
+unique(fish$Region)
+
 
 # merge ----------
 merge_database <- merge(fish, tabl, by = c("Family", "Species", "A_ord", "B_pen"), all.x = TRUE)  |> 
   rename(Diet = TrophicGroup, a = "A_ord",
          b = "B_pen") |> 
+  #Remove sharks rays and seahorses
+  dplyr::filter(Taxa2 == "Actinopterygii" & Taxa2 != "Syngnathidae") |>
+  filter(Family != "Anguillidae", Family != "Congridae", Family != "Muraenidae", Family != "Ophichthidae") |>
+  #Removing small crypto
+  filter(Family != "Chironemidae", Family != "Pinguipedidae", Family != "Chaenopsidae", Family != "Tripterygiidae",
+         Family != "Gobiidae", Family != "Callionymidae", Family != "Blenniidae",
+         Family != "Labrisomidae", Family != "Microdesmidae", Family != "Pholidichthyidae") |>
+  # filtering to keep fish larger than 5cm and fish of 5cm if Maxlength <25cm
+  filter (Size != 5 | (Size==5 & MaxSizeTL < 25)) |> 
   mutate(sstmean = 27) |> 
   filter(!Size == 0) |>
   filter(!is.na (Linf)) |>
@@ -64,20 +71,22 @@ merge_database <- merge(fish, tabl, by = c("Family", "Species", "A_ord", "B_pen"
 
 
 # Formula from Morais and Bellwood (2018) #
-fmod <- formula(~ sstmean + MaxSizeTL)
+# fmod <- formula(~ sstmean + MaxSizeTL)
+fmod <- formula(~ sstmean + MaxSizeTL + Diet + Method)
 # fmod <- formula(~ sstmean + MaxSizeTL + Diet + Position + Method)
 
 
-
 ltem_db <- merge_database |> 
-  filter(Year==2022, Region%in% c("La Paz", "La Ventana", "Loreto", "Los Cabos", "Cabo Pulmo")) |> 
   distinct(Family, Species, SpecCode, MaxSizeTL, a, b, Diet, 
-           LinfTL, K, O, Kmax, Longitude, Latitude, sstmean, Method) 
+           LinfTL, K, Kmax, O, Longitude, Latitude, sstmean, Method) 
 
 ltem_repdata <- merge_database |> 
-  filter(Year==2022, Region%in% c("La Paz", "La Ventana", "Loreto", "Los Cabos", "Cabo Pulmo")) |> 
   select(-Kmax)
 
+
+
+# Predecir Kmax. Si  no me deja correr la función sin la columna Kmax, que datos debo poner? se calcula aparte?
+# usé los datos de K
 datagr <- rfishprod::predKmax(ltem_repdata,
                               dataset = ltem_db, 
                               fmod = fmod,
@@ -132,6 +141,8 @@ mutate(W = a*(Size^b),
 
 # Productividad = Biomasa + Crecimiento Somático Total - Pérdidas debido a la Mortalidad ------
 
+
+
 transect_info = ltem_repdata %>% 
   dplyr::select(Transect, Latitude, Longitude, IDReef, Depth, Region)
 
@@ -140,39 +151,39 @@ transect_site = transect_info %>% dplyr::select(Transect, IDReef) %>%
 
 #' Calculating productivity------------------
 
-data_with_prod2 =  datagr_prod |> 
-  # filter(Year==2022, Region%in% c("La Paz", "La Ventana", "Loreto", "Los Cabos", "Cabo Pulmo")) |> 
-  #Calculating production -----------------
-  #Weight of fish at time of census
-  mutate(W = a*Size^b,
-         #Age of fish at time of census
-         t = (1/Kmax)*log((MaxSizeTL)/((1-(Size/MaxSizeTL))*MaxSizeTL)),
-         #Projected size one year later
-         Ltx = MaxSizeTL * (1-exp(-Kmax*(t+365))),
-         #Projected weight one year later
-         Wtx = a*Ltx**b,
-         #Production 
-         Wgain = Wtx - W,
-         #Biomass------ 
-         # Biomass = (a * (Size^b) * Quantity) / (1000 * Area),
-         Biom = (W*Quantity)/Area,
-         #Individual Biomass 
-         IndBiom = (W/Area),
-         #Production-----------
-         # Prod = (Wgain * Biom)/Area,
-         Prod = (Wgain * Quantity)/Area,
-         #Individual production 
-         IndProd = (Wgain/Area)) %>%
-  
-  filter(!is.na(Prod))
+# data_with_prod2 =  datagr_prod |> 
+#   # filter(Year==2022, Region%in% c("La Paz", "La Ventana", "Loreto", "Los Cabos", "Cabo Pulmo")) |> 
+#   #Calculating production -----------------
+#   #Weight of fish at time of census
+#   mutate(W = a*Size^b,
+#          #Age of fish at time of census
+#          t = (1/Kmax)*log((MaxSizeTL)/((1-(Size/MaxSizeTL))*MaxSizeTL)),
+#          #Projected size one year later
+#          Ltx = MaxSizeTL * (1-exp(-Kmax*(t+365))),
+#          #Projected weight one year later
+#          Wtx = a*Ltx**b,
+#          #Production 
+#          Wgain = Wtx - W,
+#          #Biomass------ 
+#          # Biomass = (a * (Size^b) * Quantity) / (1000 * Area),
+#          Biom = (W*Quantity)/Area,
+#          #Individual Biomass 
+#          IndBiom = (W/Area),
+#          #Production-----------
+#          # Prod = (Wgain * Biom)/Area,
+#          Prod = (Wgain * Quantity)/Area,
+#          #Individual production 
+#          IndProd = (Wgain/Area)) %>%
+#   
+#   filter(!is.na(Prod))
 
 # At the scale of the community (transect)---------
-data_prod_brut = data_with_prod2 %>%
+data_prod_brut = datagr_prod %>%
   #Sum for each transect
   group_by(IDReef,Depth,Transect) %>%
   # group_by(Transect) %>%
-  mutate(Biom = sum(Biom)/500,# porqué 500?
-         Prod = sum(Prod)/500,
+  mutate(Biom = sum(Biom)/250,# porqué 500?
+         Prod = sum(Prod)/250,
   # mutate(Biom = sum(Biom)/1000,
   #        Prod = sum(Prod)/1000,
          Productivity = (Prod/Biom)*100) %>%
@@ -189,8 +200,8 @@ data_prod_brut = data_with_prod2 %>%
   left_join(transect_info, by ="IDReef") %>%
   #Transforming data
   mutate(
-    # log10ProdB = Productivity,
-         log10ProdB = log10(Productivity+1),
+    log10ProdB = Productivity,
+         # log10ProdB = log10(Productivity+1),
          log10Biom = log10(Biom+1),
          log10Prod = log10(Prod+1),
          Latitude = as.numeric(as.character(Latitude)),
@@ -223,17 +234,29 @@ management = data_prod_brut %>%
                                ifelse(log10Biom > biom75 & log10ProdB < prod75,"pristine","transition"))))%>%
   mutate(Class = as.factor(Class))
 
+range(management$Productivity)
+range(management$Biom)
+range(management$Prod)
 
+
+unique(management$Region)
 # plot by class--------------
 #eje y = Biomass turnover, P/B × 100 (% per day)
 # eje x <- log[standing biomass (g m–2)]
 # filll = Class (Low biomass/turnover High turnover High biomass Mid-range)
+# Class=c("deadzone"="Low biomass/turnover","partial"="High turnover","pristine"="High biomass", "transition" = "transition")
 
 ggplot(management, aes(x = log10Biom, y = log10ProdB, fill = Class)) +
   geom_point(shape = 21, size = 3, alpha = 0.7) +
-  scale_fill_manual(values = c("#FF9900", "#3366CC", "#33CC33", "#9900CC")) +  # Colores personalizables
+  scale_fill_manual(values = c("#FF9900", "#33CC33", "#3366CC", "#9900CC")) +  # Colores personalizables
   labs(x = "log(standing biomass (g m^-2))", y = "Biomass Turnover (P/B × 100 % per day)") +
   theme_minimal()
+
+ggsave("figs/ltem_prod_2023.png", width = 8.5, height = 4.5, dpi=1000)
+
+management |> 
+  filter(Class == "pristine") |> 
+  distinct(IDReef)
 
 # figures ---------------
 
@@ -276,7 +299,7 @@ RLS_prod_figures = management %>%
   mutate(relative_diet = (diet_biom/biom_by_site)*100)
 
 (plot_biomass = ggplot(RLS_prod_figures %>% 
-                         # filter(Class != "transition") %>% 
+                         filter(Class != "transition") %>%
                          dplyr::select(Class, IDReef, Diet, relative_diet) %>% distinct(), aes(Diet,relative_diet,fill=Diet))+
     geom_jitter(alpha  = 0.3, size = 0.5,color='black',pch=21) +
     geom_boxplot(alpha  = 0.8) +
@@ -297,7 +320,7 @@ RLS_prod_figures$Diet <- factor(RLS_prod_figures$Diet, levels=c("Piscivoro",
                                                                 "Zooplanctivoro"))
 group.colors.diet <- c(`Piscivoro` = "#a30808", `Carnivoro` ="#b57560", `Herbivoro` = "#114a06",`Zooplanctivoro` = "#258f4e")
 (diet_biomass = ggplot(RLS_prod_figures %>% 
-                         # filter(Class != "transition") %>% 
+                         filter(Class != "transition") %>%
                          dplyr::select(Class, IDReef, Diet, relative_diet) %>% distinct(), aes(Diet,relative_diet,fill=Diet))+
     geom_jitter(alpha  = 0.3, size = 0.5,color='black',pch=21) +
     geom_boxplot(alpha  = 0.8) +
@@ -313,7 +336,7 @@ group.colors.diet <- c(`Piscivoro` = "#a30808", `Carnivoro` ="#b57560", `Herbivo
           axis.ticks.x=element_blank()))
 
 (diet_size = ggplot(RLS_prod_figures %>% 
-                      # filter(Class != "transition") %>% 
+                      filter(Class != "transition") %>%
                       dplyr::select(Class, IDReef, Diet, diet_size) %>% distinct(), aes(Diet,diet_size,fill=Diet))+
     geom_jitter(alpha  = 0.3, size = 0.5,color='black',pch=21) +
     geom_boxplot(alpha  = 0.8) +
