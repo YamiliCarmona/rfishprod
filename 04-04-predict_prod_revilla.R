@@ -17,7 +17,7 @@ library(ggrepel)
 # sst_data <- readRDS("data/tabla/sst_for_reefs.RDS")  # añadir datos de temepratura para Revillagigedo, Islas Marias, Los Cabos
 
 tabla <- read_excel("data/tabla/spp_parametros_20231201.xlsx")|> 
-  mutate(sstmean = 27) |> #Falta añadir datos sstmean
+  select(-MaxSizeTL) |>
   filter(!is.na (Linf), !is.na (LinfTL))
 
 t <- 1
@@ -25,9 +25,9 @@ t <- 1
 
 # data fish ------------
 
-fish <- readRDS("data/tabla/ltem_historic_updated_2024-01-23.RDS") |> 
+fish <- readRDS("data/tabla/ltem_historic_20231109.RDS") |> 
   filter(Label == "PEC") |>
-  filter(Region%in% c ("Revillagigedo", "Islas Marias", "Los Cabos")) |> 
+  filter(Region%in% c ("Revillagigedo","Los Cabos")) |> 
   mutate(
     A_ord = as.numeric(A_ord),
     B_pen= as.numeric(B_pen),
@@ -50,19 +50,44 @@ fish <- readRDS("data/tabla/ltem_historic_updated_2024-01-23.RDS") |>
                         right = FALSE))
 
 
-unique(fish$Year)
+unique(fish$Region)
 
-fish |> 
-  distinct(Region, Year)
+
+
+sst_means <- data.frame(Region = c("Los Cabos", "Revillagigedo"),
+                        sstmean = c(24.7, 24 ))
+
 
 fish <- fish |> 
-  # filter(!Region=="Los Cabos") |> 
-  # filter(!Year < 2010) |>
+  filter((Region == "Los Cabos" & Year == 2022) |
+           (Region == "Revillagigedo" & Year == 2023)
+           # (Region == "Islas Marias" & Year == 2018)
+         ) |> 
+  left_join(sst_means, by = "Region") |> 
   mutate(Island = str_replace_all(Island, c("Clarión" = "Clarion", "Partida Revillagigedo" = "Roca Partida")))
-  
+
+
+# Tamaños maximos observados cada año ------------
+
+TallaMax <- fish |> 
+  # filter(!Year == 2023) |> 
+  filter(!is.na(Size)) |> 
+  group_by(Year, Region, Species) |> 
+  arrange(Size) |> 
+  mutate(MaxSizeTL = max(Size)) |>
+  ungroup()
+
+MaxSizesp <- TallaMax |> 
+  distinct(Year, Region, Species, MaxSizeTL)
+
+
+tibus <- fish |> 
+  filter(Taxa2 == "Elasmobranchii") |> 
+  distinct(Region, Species, Quantity, Size)
+
 # merge ----------
 
-merge_database <- merge(fish, tabla, by = c("Family", "Species", "A_ord", "B_pen"), all.x = TRUE)  |> 
+merge_database <- merge(TallaMax, tabla, by = c("Family", "Species", "A_ord", "B_pen"), all.x = TRUE)  |> 
   rename(Diet = TrophicGroup, a = "A_ord",
          b = "B_pen") |> 
   #Remove sharks rays and seahorses
@@ -81,10 +106,14 @@ merge_database <- merge(fish, tabla, by = c("Family", "Species", "A_ord", "B_pen
 
 str(merge_database)
 
+tallas <- merge_database |> 
+  # filter(Reef == "ANEGADA") |> 
+  distinct(Region, Species, Quantity, Size)
+
 # Formula from Morais and Bellwood (2018) #--------
-fmod <- formula(~ sstmean + MaxSizeTL)
+# fmod <- formula(~ sstmean + MaxSizeTL)
 # fmod <- formula(~ sstmean + MaxSizeTL + Diet)
-# fmod <- formula(~ sstmean + MaxSizeTL + Diet + Method) # normalmente uso esta, pero a veces, con varios años marca que no crecen
+fmod <- formula(~ sstmean + MaxSizeTL + Diet + Method) # normalmente uso esta, pero a veces, con varios años marca que no crecen
 
 
 ltem_db <- merge_database |> 
@@ -262,9 +291,9 @@ ggplot(management, aes(x = log10Biom, y = log10ProdB, fill = Class)) +
   theme_minimal() +
   ggrepel::geom_text_repel(data = unique_points, aes(label = Reef), box.padding = 0.5, point.padding = 0.5, size = 1.5, max.overlaps = 300)
 
-
-# ggsave("figs/ltem_prod_reef_depth_transect-pnr.png", width = 8.5, height = 4.5, dpi=1000)
-
+management |> 
+  filter(Class == "pristine") |>
+  distinct(Reef, Class, log10ProdB, log10Biom)
 
 
 # Figuras ---------------
@@ -286,20 +315,22 @@ ggplot(management, aes(x = log10Biom, y = log10ProdB, fill = Class)) +
 
 # ylim(0, 0.6) 
 
+# ggsave("figs/ltem_prod_pnr-2023-csl.png", width = 8.5, height = 4.5, dpi=1000)
 
-
+unique(management$Year)
 
 group.colors <- c(deadzone = "#d69d4e", partial = "#046c9a", pristine = "#C1DB60", transition = "lightblue")
 
+unique(fish$Protection_status)
 
-management <- management |> 
-  mutate(Protection_status = recode(Protection_status,
-                                    "cabo pulmo" = "Fully protected",
-                                    "sin proteccion" = "Not protected",
-                                    "area protegida" = "Lightly protected")) |> 
-  mutate(Class = recode(Class, "deadzone" = "Low biomass/turnover", 
-                        "partial" = "High turnover", 
-                        "pristine" = "High biomass", 
+management <- management |>
+  # mutate(Protection_status = recode(Protection_status,
+  #                                   "cabo pulmo" = "Fully protected",
+  #                                   "sin proteccion" = "Not protected",
+  #                                   "area protegida" = "Lightly protected")) |>
+  mutate(Class = recode(Class, "deadzone" = "Low biomass/turnover",
+                        "partial" = "High turnover",
+                        "pristine" = "High biomass",
                         "transition" = "Mid-range"))
 
 (ggplot(management,aes(log10Biom,log10ProdB))+
@@ -311,9 +342,9 @@ management <- management |>
     geom_segment(aes(x = 0, xend=biom25, y = prod25 , yend=prod25),size = 0.8,colour = "black")+
     geom_segment(aes(x = 0, xend=max_biom, y = prod75 , yend=prod75),size = 0.8,colour = "black")+
     geom_point(size=3,alpha=0.4,shape=21,color="black",aes(fill=Protection_status))+
-    scale_fill_manual(values = c("Fully protected" = "#258f4e", 
-                                 "Not protected" = "#808080",   
-                                 "Lightly protected" = "yellow2"))+  
+    # scale_fill_manual(values = c("Fully protected" = "#258f4e", 
+    #                              "Not protected" = "#808080",   
+    #                              "Lightly protected" = "yellow2"))+  
     labs(x="Biomass (g/m²) - log scale",
          y = "Productivity (%/year) - log scale",
          fill = "Protection status")+
