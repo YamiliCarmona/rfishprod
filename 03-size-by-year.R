@@ -7,12 +7,12 @@ print(sitios, n = 43)
 
 
 # Temperatura promedio por años por arrecife----------------
-sst_points_resumen <- readRDS("sst_points_resumen.rds")
-
-sst_points_resumen
+# sst_points_resumen <- readRDS("sst_points_resumen.rds")
+# 
+sst_data <- readRDS("data/tabla/sst_for_reefs.RDS")
 
 # data fish ------------
-fish <- readRDS("data/tabla/ltem_historic_updated_2024-01-15.RDS") |> 
+fish <- readRDS("data/tabla/ltem_historic_updated_2024-01-23.RDS") |> 
   filter(Label == "PEC") |>
   filter(!Region%in% c ("Revillagigedo", "Islas Marias", "Ixtapa", "Huatulco", "Bahia Banderas")) |> 
   mutate(
@@ -53,38 +53,55 @@ sitios <- sitios |>
 reef_select <- fish %>%
   filter(Reef %in% sitios$Reef)
 
-reef <- reef_select |> 
-  distinct(Reef)
+reefs <- reef_select |> 
+  distinct(Year, IDReef, Reef, Longitude, Latitude)
 
-unique(sitios$Reef)
-
+unique(reefs$Reef)
 
 
 # Tamaños maximos observados cada año ------------
 
-TallaMax <- reef_select |> 
+TallaMaxsp <- reef_select |> 
   # filter(!Year == 2023) |> 
   filter(!is.na(Size)) |> 
-  group_by(Year, Reef, Species) |> 
+  group_by(Year, Species) |> 
   arrange(Size) |> 
   mutate(MaxSizeTL = max(Size)) |>
   ungroup()
 
-MaxSize <- TallaMax |> 
+MaxSizesp <- TallaMax |> 
    distinct(Year, Reef, Species, MaxSizeTL)
 
 
-colnames(sst_points_resumen) <- c("Reef", "Longitude", "Latitude", "Year", "values")
+# colnames(sst_mean) <- c("Reef", "Longitude", "Latitude", "Year", "values")
 
-sst_points_resumen$Year <- as.numeric(substring(sst_points_resumen$Year, 2))
-str(TallaMax)
+# sst_mean$Year <- as.numeric(substring(sst_mean$Year, 2))
 
+sst_mean <- sst_data %>%
+  rename(Year = year, sstmean= sst_avg)
+
+str(merged_data)
 
 # Fusionar los datos basándote en las columnas "Reef" y "Year"
-merged_data <- merge(TallaMax, sst_points_resumen[c("Reef", "Year", "values")], by = c("Reef", "Year"), all.x = TRUE)
+newsites <- left_join(reefs, sst_mean, by = c("Reef", "Year"))
 
-merged_data <- merged_data %>%
-  rename(sstmean = values)
+merged_data <- merge(TallaMaxsp, newsites, by = c("Region","Reef", "Year", "IDReef", "Longitude", "Latitude"), all.x = TRUE)
 
 print(merged_data)
 
+arrecifes <- merged_data |> 
+  distinct(Region, Reef, Habitat)
+  
+tablita <- merge_database |> 
+  distinct(Year, IDReef, Reef, Longitude, Latitude, Species, MaxSizeTL, sstmean)
+
+
+sj <- merged_data |> 
+  filter(Year == 2014, Reef == "SAN_JOSE_ANIMAS_PINACULOS")
+  select(-MaxSizeTL) 
+  
+  
+merged_data <- merged_data |> 
+  mutate(Habitat = ifelse(Reef == "ISLOTE_CABO_PULMO" & Year == 2021 & Depth == 5 & Habitat == "HABITAT", "PARED", Habitat))
+
+saveRDS(merged_data, "data/tabla/fishdata_sstmean_maxsize_by_year.RDS")
