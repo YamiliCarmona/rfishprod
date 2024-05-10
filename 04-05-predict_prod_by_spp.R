@@ -18,7 +18,7 @@ tabla <- read_excel("data/tabla/spp_parametros_20231201.xlsx")|>
   mutate(Lmax=MaxSizeTL) |> 
   filter(!is.na (Linf), !is.na (LinfTL))
 
-tabla$kmax <- tabla$k
+tabla$Kmax <- tabla$K
 
 
 t <- 1
@@ -114,54 +114,82 @@ mutate(W = a*(Size^b),
        Biom = (W*Quantity),
        Prod = ifelse(mortality == T, (somatic_growth * Quantity),0))
 
+
+# saveRDS(datagr_prod, "data/fish_datagr_prod-by-species-allyears.RDS")
+
+datagr <- readRDS("data/fish_datagr_prod-by-species-allyears.RDS")
+
+# datagr_prod <- datagr %>%
+#   mutate(W = a * (Size^b),
+#          Biom = W * Quantity,
+#          Prod = ifelse(mortality == T, (somatic_growth * Quantity), 0)) %>%
+#   group_by(Year, Protection_level, Region, Reef, Degree, Habitat, Depth2, Transect, Diet, Family, Species) %>%
+#   summarise(Biom = sum(Biom) / sum(Area), #  (kg ha^−1)
+#             Prod = sum(Prod) / sum(Area), # (g d^−1 ha^−1)
+#             Productivity = (Prod / Biom) * 100) %>%
+#   summarise(Biom = mean(Biom), # (kg ha^−1)
+#             Prod = mean(Prod), # (g d^−1 ha^−1)
+#             Productivity = mean(Productivity)) %>% # (% por día)
+#   ungroup() 
+
+
+# saveRDS(datagr_prod, "data/fish_data_prod-by-spp.RDS")
+
+datagr <- readRDS("data/fish_datagr_prod-by-species-allyears.RDS")
+
 datagr_prod <- datagr %>%
   mutate(W = a * (Size^b),
          Biom = W * Quantity,
          Prod = ifelse(mortality == T, (somatic_growth * Quantity), 0)) %>%
-  group_by(Year, Protection_status, Region, Reef, Degree, Habitat, Depth2, Transect, Diet, Family, Species) %>%
-  summarise(Biom = sum(Biom) / sum(Area), #  (kg ha^−1)
+  group_by(Year, Region, Reef, Degree, Habitat, Depth2, Transect, Family, Species) %>%
+  summarise(Biom = sum(Biom) / sum(Area), # (kg ha^−1)
             Prod = sum(Prod) / sum(Area), # (g d^−1 ha^−1)
-            Productivity = (Prod / Biom) * 100) %>%
-  ungroup() %>%
-  group_by(Year, Protection_status, Region, Reef, Degree, Habitat, Depth2, Transect, Diet, Family, Species) %>%
-  summarise(Biom = mean(Biom), # (kg ha^−1)
-            Prod = mean(Prod), # (g d^−1 ha^−1)
-            Productivity = mean(Productivity)) %>% # (% por día)
-  ungroup() %>%
-  mutate(log10ProdB = Productivity, # (% por día)
-         log10Biom = log10(Biom + 1), # (g m^−2)
-         log10Prod = log10(Prod + 1)) # (g m^−2 d^−1)
+            Productivity = (Prod / Biom) * 100,
+            .groups = "drop") %>%
+  group_by(Year, Region, Reef, Degree, Habitat, Depth2, Transect, Family, Species, .drop = TRUE) %>%
+  summarise(Biom = mean(Biom), # Promedio de Biom
+            Prod = mean(Prod), # Promedio de Prod
+            Productivity = mean(Productivity),
+            .groups = "drop") %>%
+  ungroup() 
 
-saveRDS(datagr_prod, "data/fish_data_productivity-by-species-allyears.RDS")
+str(datagr_prod)
+
+
+fish <- fishdata |> 
+  distinct(species, commercial, trophic_level_f, trophic_level, functional_groups, diet, max_size_tl)
+
+reef <- fishdata |> 
+  distinct(reef, protection, latitude, longitude, id_reef, island)
 
 
 
 #' #' #' Calculating productivity------------------
-#' data_with_prod2 =  datagr |>
+data_with_prod2 =  datagr |>
 #' 
-#' #Calculating production -----------------
-#' #Weight of fish at time of census
-#' mutate(W = a*Size^b,
-#'        #Age of fish at time of census
-#'        t = (1/Kmax)*log((MaxSizeTL)/((1-(Size/MaxSizeTL))*MaxSizeTL)),
-#'        #Projected size one year later
-#'        Ltx = MaxSizeTL * (1-exp(-Kmax*(t+365))),
-#'        #Projected weight one year later-----------
-#'        Wtx = a*Ltx**b,
-#'        #Production
-#'        Wgain = Wtx - W,
-#'        #Biomass------
-#'        # Biomass = (a * (Size^b) * Quantity) / (1000 * Area),
-#'        Biom = (W*Quantity)/Area,
-#'        #Individual Biomass
-#'        IndBiom = (W/Area),
-#'        #Production-----------
-#'        # Prod = (Wgain * Biom)/Area,
-#'        Prod = (Wgain * Quantity)/Area,
-#'        #Individual production
-#'        IndProd = (Wgain/Area)) %>%
-#'   
-#'   filter(!is.na(Prod))
+#Calculating production -----------------
+#Weight of fish at time of census
+mutate(W = a*Size^b,
+       #Age of fish at time of census
+       t = (1/Kmax)*log((MaxSizeTL)/((1-(Size/MaxSizeTL))*MaxSizeTL)),
+       #Projected size one year later
+       Ltx = MaxSizeTL * (1-exp(-Kmax*(t+365))),
+       #Projected weight one year later-----------
+       Wtx = a*Ltx**b,
+       #Production
+       Wgain = Wtx - W,
+       #Biomass------
+       # Biomass = (a * (Size^b) * Quantity) / (1000 * Area),
+       Biom = (W*Quantity)/Area,
+       #Individual Biomass
+       IndBiom = (W/Area),
+       #Production-----------
+       # Prod = (Wgain * Biom)/Area,
+       Prod = (Wgain * Quantity)/Area,
+       #Individual production
+       IndProd = (Wgain/Area)) %>%
+
+  filter(!is.na(Prod))
 #' 
 #' 
 #'  # At the scale of the community (transect)---------

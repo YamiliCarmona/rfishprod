@@ -68,7 +68,7 @@ ltem_repdata <- merge_database |>
 datagr <- rfishprod::predKmax(ltem_repdata,
                               dataset = ltem_db, 
                               fmod = fmod,
-                              niter = 10,
+                              niter = 1000,
                               return = 'pred')
 
 datagr <- datagr$pred
@@ -119,18 +119,19 @@ mutate(W = a*(Size^b),
 
 # Productividad = Biomasa + Crecimiento Somático Total - Pérdidas debido a la Mortalidad ------
 
-
+saveRDS(datagr_prod, "data/fishdata_product-2010.RDS")
 
 #' Calculating productivity------------------
 
+datagr_prod <- readRDS("data/fishdata_product-2010.RDS")
 
 # At the scale of the community (transect)---------
 data_prod_brut = datagr_prod %>%
   #Sum for each transect
   group_by(Reef,Depth,Transect) %>%
   # group_by(Transect) %>%
-  mutate(Biom = sum(Biom)/250,# porqué 500?
-         Prod = sum(Prod)/250,
+  mutate(Biom = sum(Biom)/Area,# porqué 500?
+         Prod = sum(Prod)/Area,
          # mutate(Biom = sum(Biom)/1000,
          #        Prod = sum(Prod)/1000,
          Productivity = (Prod/Biom)*100) %>%
@@ -160,7 +161,7 @@ data_prod_brut = datagr_prod %>%
 # dplyr::select(IDReef, Biom, Prod, Productivity, Transect, Latitude, Longitude, Depth, Region, log10ProdB, log10Biom, log10Prod) %>%
 # distinct(Transect, .keep_all = T)
 
-# saveRDS(data_prod_brut, "data/fishdata_productivity-by-reef-2010.RDS")
+saveRDS(data_prod_brut, "data/fishdata_product-by-reef-2010.RDS")
 
 print(paste("Minimum biomass:",min(data_prod_brut$Biom)))
 print(paste("Maximum biomass:", max(data_prod_brut$Biom)))

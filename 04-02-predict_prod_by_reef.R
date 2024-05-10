@@ -61,7 +61,7 @@ ltem_repdata <- merge_database |>
 datagr <- rfishprod::predKmax(ltem_repdata,
                               dataset = ltem_db, 
                               fmod = fmod,
-                              niter = 10,
+                              niter = 1000,
                               return = 'pred')
 
 datagr <- datagr$pred
@@ -106,57 +106,12 @@ datagr_prod = datagr %>%
   #Calculating biomass turnover-----------------
 mutate(W = a*(Size^b),
        Biom = (W*Quantity),
-       # Biom = ((W*Quantity)/(Area)), #Biomass = (a * (Size^b) * Quantity) / (1000 * Area),
        Prod = ifelse(mortality == T, (somatic_growth * Quantity),0))
-# Prod = ifelse(mortality == T, (somatic_growth * Biom),0))
 
-
-
-transect_info = ltem_repdata %>% 
-  dplyr::select(Year, Transect, Latitude, Longitude, IDReef, Depth, Region)
-
-transect_site = transect_info %>% dplyr::select(Transect, IDReef, Depth) %>%
-  dplyr::filter(Transect %in% datagr_prod$Transect) 
-
-
-# At the scale of the community (transect)---------
-data_prod_brut = datagr_prod %>%
-  #Sum for each transect
-  group_by(Year,Reef,Depth,Transect) %>%
-  mutate(Biom = sum(Biom)/250,# (kg ha^−1) # porqué 500?
-         Prod = sum(Prod)/250,#g d^−1 ha^−1
-         #Individual Biomass
-         IndBiom = (W/Area),
-         Productivity = (Prod/Biom)*100) %>%
-  ungroup() %>%
-  #Mean for each site
-  group_by(Year, Reef) %>%
-  mutate(Biom = mean(Biom),
-         Prod = mean(Prod),
-         Productivity = mean(Productivity)) %>% 
-  ungroup() %>%
-  #joinin with transect data
-  # dplyr::select(IDReef, Reef, Biom, Prod, Productivity) %>%
-  # distinct(IDReef, .keep_all = T) %>%
-  # left_join(transect_info, by ="IDReef") %>%
-  #Transforming data
-  mutate(
-    log10ProdB = Productivity,# % per day
-    log10Biom = log10(Biom+1), #(g m -2)
-    log10Prod = log10(Prod+1), # (g m-2 d-1)
-    Latitude = as.numeric(as.character(Latitude)),
-    Longitude = as.numeric(as.character(Longitude)))
-  # dplyr::select(Year, Degree, Region, IDReef, Reef, Habitat, Transect, Depth, Depth2, sstmean, Biom, Prod, Productivity, log10ProdB, log10Biom, log10Prod) %>%
-  # distinct(Year, Degree, Region, IDReef, Reef, Habitat, Transect, Depth, Depth2, sstmean, Biom, Prod, Productivity, log10ProdB, log10Biom, log10Prod, .keep_all = T)
-
-# dplyr::rename(site_code = IDReef) |>
-# dplyr::select(IDReef, Reef, Biom, Prod, Productivity, Transect, Latitude, Longitude, Depth, Region, log10ProdB, log10Biom, log10Prod) %>%
-# distinct(Reef,Depth,Transect, .keep_all = T)
-str(data_prod_brut)
 
 #' #' Calculating productivity------------------
 #' 
-# data_with_prod2 =  datagr |>
+# data_with_prod =  datagr |>
 #   #Calculating production -----------------
 #   #Weight of fish at time of census
 #   mutate(W = a*Size^b,
@@ -181,7 +136,41 @@ str(data_prod_brut)
 # 
 #   filter(!is.na(Prod))
 
-# saveRDS(data_prod_brut, "data/fishdata_productivity-by-reef-allyears.RDS")
+# At the scale of the community (transect)---------
+data_prod_brut = datagr_prod %>%
+  #Sum for each transect
+  group_by(Year,Reef,Depth2,Transect) %>%
+  mutate(
+    Biom = sum(Biom)/Area,# (kg ha^−1) # porqué 500?
+    Prod = sum(Prod)/Area,#g d^−1 ha^−1
+    Productivity = (Prod/Biom)*100) %>%
+  ungroup() |> 
+#Mean for each site
+group_by(Year, Reef) %>%
+mutate(Biom = mean(Biom),
+       Prod = mean(Prod),
+       Productivity = mean(Productivity)) %>% 
+  ungroup() %>%
+  #joinin with transect data
+  # dplyr::select(IDReef, Reef, Biom, Prod, Productivity) %>%
+  # distinct(IDReef, .keep_all = T) %>%
+  # left_join(transect_info, by ="IDReef") %>%
+  #Transforming data
+  mutate(
+    log10ProdB = Productivity,# % per day
+    log10Biom = log10(Biom+1), #(g m -2)
+    log10Prod = log10(Prod+1), # (g m-2 d-1)
+    Latitude = as.numeric(as.character(Latitude)),
+    Longitude = as.numeric(as.character(Longitude)))
+# dplyr::select(Year, Degree, Region, IDReef, Reef, Habitat, Transect, Depth, Depth2, sstmean, Biom, Prod, Productivity, log10ProdB, log10Biom, log10Prod) %>%
+# distinct(Year, Degree, Region, IDReef, Reef, Habitat, Transect, Depth, Depth2, sstmean, Biom, Prod, Productivity, log10ProdB, log10Biom, log10Prod, .keep_all = T)
+
+# dplyr::rename(site_code = IDReef) |>
+# dplyr::select(IDReef, Reef, Biom, Prod, Productivity, Transect, Latitude, Longitude, Depth, Region, log10ProdB, log10Biom, log10Prod) %>%
+# distinct(Reef,Depth,Transect, .keep_all = T)
+str(data_prod_brut)
+
+# saveRDS(data_prod_brut, "data/fishdata_prod-by-reef-allyears_1000.RDS")
 
 
 
@@ -228,8 +217,8 @@ ggplot(management, aes(x = log10Biom, y = log10ProdB, fill = Class)) +
   scale_fill_manual(values = c("deadzone" = "#FF9900", "partial" = "#3366CC", "pristine" = "#33CC33", "transition" = "#9900CC"),
                     labels = c("deadzone" = "Low biomass/turnover", "partial" = "High turnover", "pristine" = "High biomass", "transition" = "Transition")) +
   labs(x = "log(standing biomass (g m^-2))", y = "Biomass Turnover (P/B × 100 % per day)") +
-  theme_minimal() +
+  theme_minimal() #+
   ggrepel::geom_text_repel(data = unique_points, aes(label = Reef), box.padding = 0.5, point.padding = 0.5, size = 1.5, max.overlaps = 300)
 
 
-# ggsave("figs/ltem_prod_reef_depth_transect_2023_y.png", width = 8.5, height = 4.5, dpi=1000)
+# ggsave("figs/ltem_fish_prod_2010.png", width = 8.5, height = 4.5, dpi=1000)

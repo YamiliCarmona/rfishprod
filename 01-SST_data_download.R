@@ -87,3 +87,4 @@ system.time(
 dir.create("data/")
 saveRDS(OISST_data, "data/OISST_GoC.RDS")
 
+unique(OISST_GoC_2$t)

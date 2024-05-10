@@ -63,7 +63,7 @@ ltem_repdata <- merge_database |>
 datagr <- rfishprod::predKmax(ltem_repdata,
                               dataset = ltem_db, 
                               fmod = fmod,
-                              niter = 10,
+                              niter = 1000,
                               return = 'pred')
 
 datagr <- datagr$pred
@@ -112,21 +112,18 @@ mutate(W = a*(Size^b),
        Prod = ifelse(mortality == T, (somatic_growth * Quantity),0))
 # Prod = ifelse(mortality == T, (somatic_growth * Biom),0))
 
+saveRDS(datagr_prod, "data/fishdata_product-2023.RDS")
 
 
-transect_info = ltem_repdata %>% 
-  dplyr::select(Year, Transect, Latitude, Longitude, IDReef, Depth, Region)
-
-transect_site = transect_info %>% dplyr::select(Transect, IDReef, Depth) %>%
-  dplyr::filter(Transect %in% datagr_prod$Transect) 
-
+ 
+datagr_prod <- readRDS("data/fishdata_product-2023.RDS")
 
 # At the scale of the community (transect)---------
 data_prod_brut = datagr_prod %>%
   #Sum for each transect
   group_by(Year,Reef,Depth,Transect) %>%
-  mutate(Biom = sum(Biom)/250,# (kg ha^−1) # porqué 500?
-         Prod = sum(Prod)/250,#g d^−1 ha^−1
+  mutate(Biom = sum(Biom)/Area,# (kg ha^−1) # porqué 500?
+         Prod = sum(Prod)/Area,#g d^−1 ha^−1
          #Individual Biomass
           IndBiom = (W/Area),
          Productivity = (Prod/Biom)*100) %>%
@@ -179,7 +176,7 @@ str(data_prod_brut)
 # 
 #   filter(!is.na(Prod))
 
-# saveRDS(data_prod_brut, "data/fishdata_productivity-by-reef-2023.RDS")
+saveRDS(data_prod_brut, "data/fishdata_product-by-reef-2023.RDS")
 
 
 

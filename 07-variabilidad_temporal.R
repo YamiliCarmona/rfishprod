@@ -13,9 +13,15 @@ library(ggrepel)
 
 
 # data-------------
-data2010 <- readRDS("data/fishdata_productivity-by-reef-2010.RDS")
-alldata <- readRDS("data/fishdata_productivity-by-reef-allyears.RDS")
-data2023 <- readRDS("data/fishdata_productivity-by-reef-2023.RDS")
+# data2010 <- readRDS("data/fishdata_productivity-by-reef-2010.RDS")
+# alldata <- readRDS("data/fishdata_productivity-by-reef-allyears.RDS")
+# data2023 <- readRDS("data/fishdata_productivity-by-reef-2023.RDS")
+# spp <- readRDS("data/fish_datagr_prod-by-species-allyears.RDS") 
+
+
+alldata <- readRDS("data/fishdata_prod-by-reef-allyears_1000.RDS")
+data2010 <- readRDS("data/fishdata_product-by-reef-2010.RDS")
+data2023 <- readRDS("data/fishdata_product-by-reef-2023.RDS")
 
 # data_management---------------
 biom75 = quantile(data2010$log10Biom,0.95)
@@ -56,11 +62,13 @@ ggplot(management, aes(x = log10Biom, y = log10ProdB, fill = Class)) +
                     labels = c("deadzone" = "Low biomass/turnover", "partial" = "High turnover", "pristine" = "High biomass", "transition" = "Mid-range")) +
   labs(x = "log(standing biomass (g m^-2))", y = "Biomass Turnover (P/B × 100 % per day)") +
   theme_classic() +
-  ggrepel::geom_text_repel(data = unique_points, aes(label = Reef), box.padding = 0.5, point.padding = 0.5, size = 1.5, max.overlaps = 300)+
+  geom_text(data = unique_points, aes(label = Reef), size = 2, vjust = 4)
+  # ggrepel::geom_text_repel(data = unique_points, aes(label = Reef), box.padding = 0.5, point.padding = 0.5, size = 1.5, max.overlaps = 300)
 
-  ylim(0, 0.6) 
+  # ylim(0, 0.6) 
 
-# ggsave("figs/ltem_2010_turnover_ajuste06.png", width = 8.5, height = 4.5, dpi=1000)
+ggsave("figs/ltem_data2010_turnover_prod.png", width = 8.5, height = 4.5, dpi=1000)
+
 
 
 group.colors <- c(deadzone = "#d69d4e", partial = "#046c9a", pristine = "#C1DB60", transition = "lightblue")
@@ -92,11 +100,12 @@ management <- management |>
          y = "Productivity (%/year) - log scale",
          fill = "Protection status")+
     theme_classic())+
-  ggrepel::geom_text_repel(data = unique_points, aes(label = Reef), box.padding = 0.5, point.padding = 0.5, size = 2, max.overlaps = 300)
+  geom_text(data = unique_points, aes(label = Reef), size = 2, vjust = 4, nudge_y = 0.1)
+  # ggrepel::geom_text_repel(data = unique_points, aes(label = Reef), box.padding = 0.5, point.padding = 0.5, size = 2, max.overlaps = 300)
 # ylim(0, 0.6)
 
 
-# ggsave("figs/protect_status_2010_fig.png",height=210, width= 297,units="mm")
+ggsave("figs/protect_status_data2010_figures.png",height=210, width= 297,units="mm")
 
 
 # suma los datos por la columna Class y Protection_status
@@ -121,7 +130,7 @@ ggplot(data_summarized, aes(x = Class, y = count, fill = Protection_status)) +
   theme_classic()
 
 
-# ggsave("figs/ltem_2010_class_status_portected.png", width = 8.5, height = 4.5, dpi=1000)
+ggsave("figs/ltem_data2010_class_status_portected_.png", width = 8.5, height = 4.5, dpi=1000)
   
 #Todos los años -------------
 

@@ -4,9 +4,9 @@ library(gridExtra)
 
 # data ---------
 
-data2010 <- readRDS("data/fishdata_productivity-by-reef-2010.RDS")
-alldata <- readRDS("data/fishdata_productivity-by-reef-allyears.RDS")
-data2023 <- readRDS("data/fishdata_productivity-by-reef-2023.RDS")
+alldata <- readRDS("data/fishdata_prod-by-reef-allyears_1000.RDS")
+data2010 <- readRDS("data/fishdata_product-by-reef-2010.RDS")
+data2023 <- readRDS("data/fishdata_product-by-reef-2023.RDS")
 
 
 # Graficar---------

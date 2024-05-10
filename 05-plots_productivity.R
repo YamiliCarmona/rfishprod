@@ -1,19 +1,21 @@
 # DATA-------------
 
-data2010 <- readRDS("data/fishdata_productivity-by-reef-2010.RDS")
-alldata <- readRDS("data/fishdata_productivity-by-reef-allyears.RDS")
-data2023 <- readRDS("data/fishdata_productivity-by-reef-2023.RDS")
+
+alldata <- readRDS("data/fishdata_prod-by-reef-allyears_1000.RDS")
+data2010 <- readRDS("data/fishdata_product-by-reef-2010.RDS")
+data2023 <- readRDS("data/fishdata_product-by-reef-2023.RDS")
+data <- data2010
 
 # data_management---------------
-biom75 = quantile(reefs2023$log10Biom,0.95)
-biom25 = quantile(reefs2023$log10Biom,0.25)
-prod75 = quantile(reefs2023$log10ProdB,0.75)
-prod25 = quantile(reefs2023$log10ProdB,0.25)
-max_biom = max(reefs2023$log10Biom)
+biom75 = quantile(data$log10Biom,0.95)
+biom25 = quantile(data$log10Biom,0.25)
+prod75 = quantile(data$log10ProdB,0.75)
+prod25 = quantile(data$log10ProdB,0.25)
+max_biom = max(data$log10Biom)
 
 
 #Diving data into 3 classes for each biomass/productivity relationship
-management = reefs2023 %>% 
+management = data %>% 
   
   mutate(Class = ifelse(log10Biom < biom25 & log10ProdB < prod25,"deadzone",
                         ifelse(log10ProdB > prod75,"partial",
@@ -41,10 +43,11 @@ ggplot(management, aes(x = log10Biom, y = log10ProdB, fill = Class)) +
                     labels = c("deadzone" = "Low biomass/turnover", "partial" = "High turnover", "pristine" = "High biomass", "transition" = "Transition")) +
   labs(x = "log(standing biomass (g m^-2))", y = "Biomass Turnover (P/B × 100 % per day)") +
   theme_minimal() +
-  ggrepel::geom_text_repel(data = unique_points, aes(label = Reef), box.padding = 0.5, point.padding = 0.5, size = 2, max.overlaps = 300)
+  geom_text(data = unique_points, aes(label = Reef), size = 2, vjust = 4, nudge_y = 0.1)
+  # ggrepel::geom_text_repel(data = unique_points, aes(label = Reef), box.padding = 0.5, point.padding = 0.5, size = 2, max.overlaps = 300)
 
 
-# ggsave("figs/ltem_prod_reef_depth_transect_allyear-allreef.png", width = 8.5, height = 4.5, dpi=1000)
+# ggsave("figs/fish_prod_2023.png", width = 8.5, height = 4.5, dpi=1000)
 
 avers<- management |> 
   filter(Class == "pristine") |>
@@ -52,10 +55,10 @@ avers<- management |>
 
 # figures ---------------
 
-traits_trophic = reefs2023 %>%
+traits_trophic = data %>%
   dplyr::select(Species, TrophicLevelF, TrophicLevel,Functional_groups,Diet, MaxSizeTL )
 
-RLS_prod_all_site = reefs2023 %>% 
+RLS_prod_all_site = data%>% 
   # dplyr::left_join(transect_info, by = "Transect") %>%
   dplyr::select(c(Species, Genus,Family,Quantity, Size, MaxSizeTL,W, Kmax,Reef, Protection_level))
 
@@ -141,9 +144,9 @@ RLS_prod_figures$Diet <- factor(RLS_prod_figures$Diet, levels=c("Piscivoro",
     theme_minimal())
 
 ggarrange(diet_biomass, diet_size, ncol = 1,common.legend = T)
-# ggsave("figs/ltem_prod_diet_detail_2023.png", width = 8.5, height = 4.5, dpi=1000)
-
-# ggsave("Figures/diet_detail.pdf",width =297,height  =210, units="mm",dpi=600)
+# ggsave("figs/ltem_prod_diet_detail_2023_.png", width = 8.5, height = 4.5, dpi=1000)
+# 
+# ggsave("figs/diet_detail_2023.pdf",width =297,height  =210, units="mm",dpi=600)
 
 RLS_prod_figures$TrophicLevelF <- factor(RLS_prod_figures$TrophicLevelF, levels=c("2-2.5", "2.5-3", "3-3.5", "3.5-4", "4-4.5"))
 group.colors <- c(`2-2.5` = "#144D49", `2.5-3` = "#276C69", `3-3.5` = "#73C1C4", `3.5-4` = "lightgrey", `4-4.5` = "#BF8599")
@@ -167,7 +170,7 @@ ggplot(protection)+
   theme_void()+
   theme(legend.position="top")
 
-# ggsave("figs/partial_trophic_2023.png", width = 8.5, height = 4.5, dpi=1000)
+# ggsave("figs/partial_trophic_2010.png", width = 8.5, height = 4.5, dpi=1000)
 # ggsave("Figures/partial_trophic.pdf")
 
 protection_pristine = RLS_prod_figures %>% filter(Class == "pristine") %>% dplyr::mutate(Diet = ifelse(Diet == "higher carnivore", "Higher carnivore",Diet)) %>%
@@ -238,9 +241,9 @@ protection_partial = RLS_prod_figures %>% filter(Class == "partial")  %>% dplyr:
 )
 
 ggarrange(pristine,deadzone,partial,ncol =1, common.legend = T)
-# ggsave("figures/Diet_by_class_2023.png", width = 210, height = 297, units ="mm")
+# ggsave("figures/Diet_by_class_2010.png", width = 210, height = 297, units ="mm")
 
-
+# 
 # ggplot(RLS_prod_figures,aes(log10(site_biom+1),trophic_percentage,group = Diet, color = Diet))+
 #   geom_point(shape = ".", alpha = 0.5)+
 #   geom_smooth()+
@@ -388,9 +391,10 @@ library(ggforce)
    labs(x="Biomass (g/m²) - log scale",
         y = "Productivity (%/year) - log scale")+
    theme_classic())+
-  ggrepel::geom_text_repel(data = unique_points, aes(label = Reef), box.padding = 0.5, point.padding = 0.5, size = 2, max.overlaps = 300)
+geom_text(data = unique_points, aes(label = Reef), size = 2, vjust = 4, nudge_y = 0.1)  
+# ggrepel::geom_text_repel(data = unique_points, aes(label = Reef), box.padding = 0.5, point.padding = 0.5, size = 2, max.overlaps = 300)
 
-# ggsave("Figures/protect_status_Class_2023.png",height=210, width= 297,units="mm")
+# ggsave("figs/protect_status_Class_2023_text.png",height=210, width= 297,units="mm")
 
 
 library(ggnewscale)
@@ -404,7 +408,8 @@ library(ggnewscale)
     labs(x="Biomass (g/m²) - log scale",
          y = "Productivity (%/year) - log scale")+
     theme_classic())+
-  ggrepel::geom_text_repel(data = unique_points, aes(label = Reef), box.padding = 0.5, point.padding = 0.5, size = 2, max.overlaps = 300)
+  geom_text(data = unique_points, aes(label = Reef), size = 2, vjust = 4, nudge_y = 0.1)
+  # ggrepel::geom_text_repel(data = unique_points, aes(label = Reef), box.padding = 0.5, pcoint.padding = 0.5, size = 2, max.overlaps = 300)
 
 
 (ggplot(RLS_prod_figures,aes(log10Biom,log10ProdB))+
@@ -417,10 +422,11 @@ library(ggnewscale)
          y = "Productivity (%/year) - log scale",
          fill = "Protection status")+
     theme_classic())+
-  ggrepel::geom_text_repel(data = unique_points, aes(label = Reef), box.padding = 0.5, point.padding = 0.5, size = 2, max.overlaps = 300)
+  geom_text(data = unique_points, aes(label = Reef), size = 2, vjust = 4, nudge_y = 0.1)
+  # ggrepel::geom_text_repel(data = unique_points, aes(label = Reef), box.padding = 0.5, point.padding = 0.5, size = 2, max.overlaps = 300)
 
 
-# ggsave("Figures/protect_status_2023.png",height=210, width= 297,units="mm")
+# ggsave("figs/protect_status_2023_text.png",height=210, width= 297,units="mm")
 
 data_family_genus = data_prod %>%
   dplyr::select(Family,Genus)%>%
