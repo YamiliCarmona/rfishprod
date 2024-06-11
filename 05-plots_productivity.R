@@ -6,6 +6,56 @@ data2010 <- readRDS("data/fishdata_product-by-reef-2010.RDS")
 data2023 <- readRDS("data/fishdata_product-by-reef-2023.RDS")
 data <- data2010
 
+
+ltem <- readRDS("data/ltem_historic_integrada_2024-05-24.RDS")
+
+sspdata <- readRDS("data/fish_datagr_prod-by-species-herbivoros2.RDS") 
+
+# alldata <- readRDS("data/fishdata_prod-by-reef-herbivoros.RDS")
+
+fish <- sspdata |> 
+  janitor::clean_names() |> 
+  filter(label == "PEC") |> 
+  mutate(
+    a_ord = as.numeric(a),
+    b_pen = as.numeric(b),
+    quantity = as.numeric(quantity),
+    size = as.numeric(size),
+    area = as.numeric(area),
+    month = as.numeric(month),
+    biomass = (quantity * a_ord * (size^b_pen)) / (area * 100) # Fórmula para calcular la biomasa (ton/ha)
+  ) |> 
+  mutate(biomass = as.numeric(biomass))
+
+
+unique(sspdata$Species)
+
+# Sumar para cada transecto ---------
+data <- sspdata |> 
+  filter(Species %in% c("Calotomus carolinus", "Nicholsina denticulata", "Scarus compressus",
+                        "Scarus ghobban", "Scarus perrico", "Scarus rubroviolaceus")) |> 
+  #Sum for each transect
+  group_by(Year,Region, Reef,Depth2,Transect) %>%
+  mutate(
+    Biom = sum(Biom)/Area,# (kg ha^−1) # porqué 500?
+    Prod = sum(Prod)/Area,#g d^−1 ha^−1
+    Productivity = (Prod/Biom)*100) %>%
+  ungroup() |> 
+  #Mean for each site
+  group_by(Year, Reef) %>%
+  mutate(Biom = mean(Biom),
+         Prod = mean(Prod),
+         Productivity = mean(Productivity)) %>% 
+  ungroup() %>%
+  #Transforming data
+  mutate(
+    log10ProdB = Productivity,# % per day
+    log10Biom = log10(Biom+1), #(g m -2)
+    log10Prod = log10(Prod+1), # (g m-2 d-1)
+    Latitude = as.numeric(as.character(Latitude)),
+    Longitude = as.numeric(as.character(Longitude)))
+
+
 # data_management---------------
 biom75 = quantile(data$log10Biom,0.95)
 biom25 = quantile(data$log10Biom,0.25)
@@ -43,15 +93,15 @@ ggplot(management, aes(x = log10Biom, y = log10ProdB, fill = Class)) +
                     labels = c("deadzone" = "Low biomass/turnover", "partial" = "High turnover", "pristine" = "High biomass", "transition" = "Transition")) +
   labs(x = "log(standing biomass (g m^-2))", y = "Biomass Turnover (P/B × 100 % per day)") +
   theme_minimal() +
-  geom_text(data = unique_points, aes(label = Reef), size = 2, vjust = 4, nudge_y = 0.1)
-  # ggrepel::geom_text_repel(data = unique_points, aes(label = Reef), box.padding = 0.5, point.padding = 0.5, size = 2, max.overlaps = 300)
+  # geom_text(data = unique_points, aes(label = Reef), size = 2, vjust = 4, nudge_y = 0.1)
+  ggrepel::geom_text_repel(data = unique_points, aes(label = Reef), box.padding = 0.5, point.padding = 0.5, size = 2, max.overlaps = 300)
 
 
 # ggsave("figs/fish_prod_2023.png", width = 8.5, height = 4.5, dpi=1000)
 
 avers<- management |> 
   filter(Class == "pristine") |>
-  distinct(Reef, Class, log10ProdB, log10Biom)
+  distinct(Region, Reef, Class, log10ProdB, log10Biom)
 
 # figures ---------------
 
@@ -391,8 +441,8 @@ library(ggforce)
    labs(x="Biomass (g/m²) - log scale",
         y = "Productivity (%/year) - log scale")+
    theme_classic())+
-geom_text(data = unique_points, aes(label = Reef), size = 2, vjust = 4, nudge_y = 0.1)  
-# ggrepel::geom_text_repel(data = unique_points, aes(label = Reef), box.padding = 0.5, point.padding = 0.5, size = 2, max.overlaps = 300)
+# geom_text(data = unique_points, aes(label = Reef), size = 2, vjust = 4, nudge_y = 0.1)  
+ggrepel::geom_text_repel(data = unique_points, aes(label = Reef), box.padding = 0.5, point.padding = 0.5, size = 2, max.overlaps = 300)
 
 # ggsave("figs/protect_status_Class_2023_text.png",height=210, width= 297,units="mm")
 
@@ -408,22 +458,22 @@ library(ggnewscale)
     labs(x="Biomass (g/m²) - log scale",
          y = "Productivity (%/year) - log scale")+
     theme_classic())+
-  geom_text(data = unique_points, aes(label = Reef), size = 2, vjust = 4, nudge_y = 0.1)
-  # ggrepel::geom_text_repel(data = unique_points, aes(label = Reef), box.padding = 0.5, pcoint.padding = 0.5, size = 2, max.overlaps = 300)
+  # geom_text(data = unique_points, aes(label = Reef), size = 2, vjust = 4, nudge_y = 0.1)
+  ggrepel::geom_text_repel(data = unique_points, aes(label = Reef), box.padding = 0.5, pcoint.padding = 0.5, size = 2, max.overlaps = 300)
 
 
 (ggplot(RLS_prod_figures,aes(log10Biom,log10ProdB))+
     # geom_mark_hull(aes(fill = Class), con.cap= 0, expand = 0, radius = 0, alpha = 0.3)+
     scale_fill_manual(values=group.colors,labels=c("Low Productivity/Biomass reefs","Productive reefs","High Biomass reefs"))+
     ggnewscale::new_scale_fill() +
-    geom_point(size=3,alpha=0.4,shape=21,color="black",aes(fill=Protection_level))+
+    geom_point(size=3,alpha=0.4,shape=21,color="black",aes(fill=ProtectionStatus))+
     scale_fill_viridis_d()+
     labs(x="Biomass (g/m²) - log scale",
          y = "Productivity (%/year) - log scale",
          fill = "Protection status")+
     theme_classic())+
-  geom_text(data = unique_points, aes(label = Reef), size = 2, vjust = 4, nudge_y = 0.1)
-  # ggrepel::geom_text_repel(data = unique_points, aes(label = Reef), box.padding = 0.5, point.padding = 0.5, size = 2, max.overlaps = 300)
+  # geom_text(data = unique_points, aes(label = Reef), size = 2, vjust = 4, nudge_y = 0.1)
+  ggrepel::geom_text_repel(data = unique_points, aes(label = Reef), box.padding = 0.5, point.padding = 0.5, size = 2, max.overlaps = 300)
 
 
 # ggsave("figs/protect_status_2023_text.png",height=210, width= 297,units="mm")

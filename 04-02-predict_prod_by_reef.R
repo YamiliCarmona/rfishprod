@@ -42,6 +42,9 @@ merge_database <- merge(merged_data, tabla, by = c("Family", "Species", "A_ord",
 
 str(merge_database)
 
+merge_database <- merge_database |> 
+  filter(!(Reef == "SAN_JOSE_ANIMAS_PINACULOS" & Year == 2014 & Species == "Hoplopagrus guentherii"))
+
 # Formula from Morais and Bellwood (2018) #
 # fmod <- formula(~ sstmean + MaxSizeTL)
 # fmod <- formula(~ sstmean + MaxSizeTL + Diet)
@@ -136,10 +139,14 @@ mutate(W = a*(Size^b),
 # 
 #   filter(!is.na(Prod))
 
+
+# datagr_prod <- readRDS("data/fish_datagr_prod-by-species-allyears.RDS") |>
+#   filter(!(reef == "SAN_JOSE_ANIMAS_PINACULOS" & year == 2014 & species == "Hoplopagrus guentherii"))
+
 # At the scale of the community (transect)---------
 data_prod_brut = datagr_prod %>%
   #Sum for each transect
-  group_by(Year,Reef,Depth2,Transect) %>%
+  group_by(Year, Region, Reef,Depth2,Transect) %>%
   mutate(
     Biom = sum(Biom)/Area,# (kg ha^−1) # porqué 500?
     Prod = sum(Prod)/Area,#g d^−1 ha^−1
@@ -170,7 +177,7 @@ mutate(Biom = mean(Biom),
 # distinct(Reef,Depth,Transect, .keep_all = T)
 str(data_prod_brut)
 
-# saveRDS(data_prod_brut, "data/fishdata_prod-by-reef-allyears_1000.RDS")
+# saveRDS(data_prod_brut, "data/fishdata_prod-by-reef-allyears-sin-H-guentherii.RDS")
 
 
 
